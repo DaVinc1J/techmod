@@ -1,5 +1,44 @@
-// You may write any gradle buildscript component in this file
-// This file is automatically applied after build.gradle + dependencies.gradle is ran
+// ---------------------------------------------------------------------------
+// LWJGL2 aarch64 native override for Asahi Linux / Linux ARM64
+//
+// Stock LWJGL 2.9.4 ships only x86 and x86_64 natives. On aarch64 its
+// Sys.java falls back to the 32-bit "natives-linux" zip, producing the
+// "wrong ELF class: ELFCLASS32" crash at launch.
+//
+// Fix: after RFG's extractNatives2 task unpacks the x86 .so files, we
+// overwrite them with aarch64 builds placed in native-override/linux-aarch64/.
+//
+// How to populate that directory (pick one):
+//   A) Package manager — on Arch/Asahi:
+//        yay -S lwjgl2-aarch64 (AUR)
+//      then copy /usr/lib/lwjgl2/*.so  →  native-override/linux-aarch64/
+//   B) Pre-built binaries from the community:
+//        https://github.com/theofficialgman/lwjgl2-binaries-arm64/releases
+//      download the linux-aarch64 zip and extract the .so files there
+//   C) Build from source:
+//        git clone https://github.com/LWJGL/lwjgl.git && cd lwjgl
+//        ant && ant generate-native-headers
+//        cc -shared -fPIC ... (see LWJGL build docs)
+// ---------------------------------------------------------------------------
+def isLinuxAarch64 = org.gradle.internal.os.OperatingSystem.current().isLinux() &&
+        (System.getProperty('os.arch', '') == 'aarch64' || System.getProperty('os.arch', '') == 'arm64')
 
-// If you wish to use the default helper methods, uncomment the line below
-// apply from: 'gradle/scripts/helpers.gradle'
+if (isLinuxAarch64) {
+    def aarch64NativesDir = rootProject.file('native-override/linux-aarch64')
+
+    tasks.named('extractNatives2').configure {
+        doLast {
+            def lwjglNativesDir = rootProject.file('run/natives/lwjgl2')
+            if (aarch64NativesDir.exists() && aarch64NativesDir.listFiles()?.length > 0) {
+                copy {
+                    from aarch64NativesDir
+                    into lwjglNativesDir
+                }
+                logger.lifecycle("[aarch64] Replaced LWJGL2 natives in ${lwjglNativesDir} with aarch64 builds.")
+            } else {
+                logger.warn("[aarch64] native-override/linux-aarch64/ is empty or missing.")
+                logger.warn("[aarch64] runClient will fail with ELFCLASS32. See gradle/scripts/extra.gradle for instructions.")
+            }
+        }
+    }
+}

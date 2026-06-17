@@ -20,6 +20,9 @@ build
 # kate
 *.kate-swp
 
+# native
+native-override/linux-aarch64/
+
 # other
 eclipse
 run
